@@ -76,3 +76,42 @@ def test_uppercase_host_is_allowed():
 
 def test_query_string_is_preserved():
     assert guard().settle("/search?q=1") == "/search?q=1"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "%252f%252fevil.example/home",
+        "/%5cevil.example",
+        "/home%0d%0aSet-Cookie: x=1",
+        "/home%250d%250aSet-Cookie: x=1",
+        "%6aavascript%3aalert(1)",
+        "https://user%3apass@app.example/home",
+    ],
+)
+def test_repeatedly_encoded_attacks_raise(target):
+    with pytest.raises(ValueError):
+        guard().settle(target)
+
+
+def test_encoded_relative_path_is_decoded():
+    assert guard().settle("%2faccount") == "/account"
+
+
+def test_default_port_is_normalized():
+    assert guard().settle("https://APP.EXAMPLE:443/home") == (
+        "https://app.example/home"
+    )
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "/.//evil.example/home",
+        "/account/..//evil.example/home",
+        "https://app.example/.//evil.example/home",
+    ],
+)
+def test_path_that_resolves_outside_site_raises(target):
+    with pytest.raises(ValueError):
+        guard().settle(target)
